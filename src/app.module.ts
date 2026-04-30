@@ -6,13 +6,13 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { redisStore } from 'cache-manager-redis-yet';
+import { LoggerModule } from '@/integrations/logger/logger.module';
+import { MonitoringModule } from '@/integrations/monitoring/monitoring.module';
 import { ConfigModule, type EnvConfig } from '@/shared/config';
 import { ContextModule } from '@/shared/context';
+import { HealthModule } from '@/shared/health/health.module';
 import { ResponseInterceptor } from '@/shared/interceptors/response.interceptor';
-import { LoggerModule } from '@/shared/modules/logger.module';
-import { MonitoringModule } from '@/shared/modules/monitoring.module';
-import { HealthModule } from '@/modules/health/health.module';
-import { TurtleModule } from '@/modules/turtle/turtle.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -20,6 +20,7 @@ import { TurtleModule } from '@/modules/turtle/turtle.module';
     ContextModule,
     EventEmitterModule.forRoot(),
 
+    /** MongoDB */
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvConfig, true>) => ({
@@ -27,6 +28,7 @@ import { TurtleModule } from '@/modules/turtle/turtle.module';
       }),
     }),
 
+    /** Cache */
     CacheModule.registerAsync({
       isGlobal: true,
       inject: [ConfigService],
@@ -47,6 +49,7 @@ import { TurtleModule } from '@/modules/turtle/turtle.module';
       },
     }),
 
+    /** Rate Limiting */
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<EnvConfig, true>) => [
@@ -58,7 +61,7 @@ import { TurtleModule } from '@/modules/turtle/turtle.module';
     }),
 
     /** Feature Modules */
-    TurtleModule,
+    AuthModule,
     HealthModule,
 
     /** Shared Modules */

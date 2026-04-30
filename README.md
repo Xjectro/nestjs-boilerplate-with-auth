@@ -23,7 +23,7 @@ Single-file bootstrap that creates a `NestFastifyApplication` and registers:
 
 - Helmet (CSP disabled for APIs)
 - `ValidationPipe` with whitelist + transform
-- Swagger at `/docs`
+- Swagger at `/docs` — title and description read from `APP_NAME` / `APP_DESCRIPTION` env vars
 - `GlobalExceptionFilter` with `SeqLogger`
 - `ConsoleSeqLogger` as the application logger
 - `LoggingInterceptor` + `ResponseInterceptor` (both DI-resolved)
@@ -38,37 +38,50 @@ Single-file bootstrap that creates a `NestFastifyApplication` and registers:
 - `MongooseModule` — connects via `MONGODB_URI`
 - `CacheModule` — Redis with `CACHE_TTL`, falls back to in-memory
 - `ThrottlerModule` — rate limiting via `THROTTLE_TTL` / `THROTTLE_LIMIT`
-- `LoggerModule` — Seq structured logging
-- `MonitoringModule` — Prometheus metrics interceptor
-- Domain modules: `TurtleModule`, `HealthModule`
+- `LoggerModule` — Seq structured logging (`src/integrations/logger/`)
+- `MonitoringModule` — Prometheus metrics interceptor (`src/integrations/monitoring/`)
+- Domain modules: `AuthModule`, `HealthModule`
 
 ### Shared (`src/shared/`)
+
+Core infrastructure — no third-party service coupling.
 
 | Directory       | Purpose                                                                    |
 | --------------- | -------------------------------------------------------------------------- |
 | `config/`       | Zod env schema, `EnvConfig` type, `ConfigModule` setup                     |
 | `context/`      | `ContextModule`, `CorrelationIdMiddleware`, `RequestContext` service (CLS) |
-| `pagination/`   | `PaginationQueryDto`, `paginate()` helper, `PaginatedResponse<T>` type     |
 | `database/`     | Mongoose soft-delete plugin (`deletedAt`, `softDelete()`, `restore()`)     |
 | `filters/`      | `GlobalExceptionFilter` with `ApiErrorCode` mapping                        |
-| `interceptors/` | Logging, response envelope, idempotency, metrics interceptors              |
+| `health/`       | `HealthModule`, liveness + readiness controller, Redis health indicator    |
 | `http/`         | `ApiSuccessResponse`, `ApiErrorResponse`, idempotency utilities            |
-| `cache/`        | Shared cache key helpers                                                   |
-| `modules/`      | `LoggerModule` (Seq), `MonitoringModule` (Prometheus)                      |
+| `interceptors/` | Response envelope, idempotency interceptors                                |
+| `pagination/`   | `PaginationQueryDto`, `paginate()` helper, `PaginatedResponse<T>` type     |
+
+### Integrations (`src/integrations/`)
+
+Third-party service wrappers — each folder is independently replaceable.
+
+| Directory    | Purpose                                             |
+| ------------ | --------------------------------------------------- |
+| `logger/`    | `LoggerModule` (Seq), `LoggingInterceptor`          |
+| `mail/`      | `MailModule`, `MailService` (Resend)                |
+| `monitoring/`| `MonitoringModule` (Prometheus), `MetricsInterceptor` |
 
 ### Domain Modules (`src/modules/`)
 
-- **Turtle** — Full CRUD with pagination, soft delete, Redis caching, event emitting, and a database
-  seeder.
-- **Health** — Liveness (`/health`) and readiness (`/health/ready`) endpoints with MongoDB, Redis,
-  and memory indicators.
+- **Auth** — Email/password authentication with OTP verification for login and registration,
+  JWT-based session, forgot password + reset password flow, and protected profile endpoint.
+  - `guards/` — `AuthGuard`
+  - `decorators/` — `@Public()`, `@Roles()`
+  - `otp/` — `OtpCodeService`, `OtpCodeRepository`, `OtpCodeCacheRepository`, schema
+- **Customer** — Customer persistence + Redis-backed read-through caching by `id` and `email`.
 
 ## Repository Layout
 
 ```
 ├── docker/
 │   ├── compose.{base,dev,staging,prod,test}.yml
-│   ├── env/                       # .env.dev, .env.staging, .env.prod, .env.test
+│   ├── env/                       # .env.dev, .env.example, .env.test, .env.prod, .env.staging
 │   ├── images/api/                # Dockerfile.{dev,prod,staging,test}
 │   ├── grafana/provisioning/      # dashboards + datasources
 │   └── prometheus/                # prometheus.yml
@@ -76,26 +89,56 @@ Single-file bootstrap that creates a `NestFastifyApplication` and registers:
 │   ├── main.ts                    # entry point
 │   ├── bootstrap.ts               # app bootstrap
 │   ├── app.module.ts              # root module
-│   ├── seed.ts                    # database seeder CLI
-│   ├── shared/
-│   │   ├── config/                # Zod env validation
-│   │   ├── context/               # CLS + correlation ID
-│   │   ├── pagination/            # pagination DTO + helper
+│   ├── cli/
+│   │   └── seed.ts                # database seeder CLI
+│   ├── integrations/              # third-party service wrappers
+│   │   ├── logger/                # Seq — LoggerModule + LoggingInterceptor
+│   │   ├── mail/                  # Resend — MailModule + MailService
+│   │   └── monitoring/            # Prometheus — MonitoringModule + MetricsInterceptor
+│   ├── shared/                    # core infrastructure (no external service coupling)
+│   │   ├── config/                # Zod env validation + EnvConfig type
+│   │   ├── context/               # CLS + correlation ID middleware
 │   │   ├── database/              # soft-delete plugin
 │   │   ├── filters/               # global exception filter
-│   │   ├── interceptors/          # logging, response, idempotency, metrics
+│   │   ├── health/                # health + readiness controller
 │   │   ├── http/                  # response types, request helpers
-│   │   ├── cache/                 # cache key builders
-│   │   └── modules/               # logger (Seq), monitoring (Prometheus)
+│   │   ├── interceptors/          # response envelope, idempotency
+│   │   └── pagination/            # pagination DTO + helper
 │   └── modules/
-│       ├── health/                # health + readiness controller
-│       └── turtle/                # CRUD module (service, repo, cache, events, seeder)
+│       ├── auth/
+│       │   ├── decorators/        # @Public(), @Roles()
+│       │   ├── dto/               # request DTOs
+│       │   ├── guards/            # AuthGuard
+│       │   └── otp/               # OTP service, repositories, schema
+│       └── customer/              # customer service, repository, cache repository
 ├── test/
-│   ├── turtle.e2e-spec.ts
+│   ├── auth.e2e-spec.ts
 │   └── utils/                     # test assertion helpers
 ├── Makefile
 └── .github/workflows/
 ```
+
+## Auth API Overview
+
+All responses are wrapped by the global response interceptor.
+
+| Endpoint                                | Method | Description                                                  |
+| --------------------------------------- | ------ | ------------------------------------------------------------ |
+| `/auth/register`                        | POST   | Create account and send OTP to email                         |
+| `/auth/register-verify-otp-code`        | POST   | Verify registration OTP and return JWT                       |
+| `/auth/login`                           | POST   | Validate credentials and send OTP                            |
+| `/auth/login-verify-otp-code`           | POST   | Verify login OTP and return JWT                              |
+| `/auth/forgot-password`                 | POST   | Send reset OTP to email                                      |
+| `/auth/forgot-password-verify-otp-code` | POST   | Verify reset OTP before changing password                    |
+| `/auth/reset-password`                  | POST   | Set new password with verified OTP                           |
+| `/auth/profile`                         | GET    | Protected profile endpoint (`Authorization: Bearer <token>`) |
+
+## Test Coverage
+
+- Unit tests — `src/modules/auth/__tests__/auth.service.spec.ts`
+- Unit tests — `src/modules/customer/__tests__/customer.service.spec.ts`
+- E2E tests — `test/auth.e2e-spec.ts`
+- Compose-based integration run: `make test` (MongoDB + Redis + API + tests container)
 
 ## Getting Started
 
@@ -123,8 +166,9 @@ npm run seed
 
 ### Environment Configuration
 
-Create a `.env` file at the repository root. All variables are validated at startup via Zod — the
-app will fail fast with clear error messages if required values are missing or malformed.
+Copy `docker/env/.env.example` to `.env` at the repository root. All variables are validated at
+startup via Zod — the app will fail fast with clear error messages if required values are missing or
+malformed.
 
 ## npm Scripts
 
@@ -163,21 +207,26 @@ appropriate Dockerfile and runtime flags.
 
 ## Environment Variables
 
-| Variable                   | Default                             | Purpose                            |
-| -------------------------- | ----------------------------------- | ---------------------------------- |
-| `NODE_ENV`                 | `development`                       | Runtime environment                |
-| `PORT`                     | `3000`                              | Fastify listen port                |
-| `MONGODB_URI`              | `mongodb://127.0.0.1:27017/turtles` | MongoDB connection string          |
-| `REDIS_URL`                | `redis://127.0.0.1:6379`            | Redis connection string            |
-| `CACHE_TTL`                | `5`                                 | Cache TTL in seconds               |
-| `THROTTLE_TTL`             | `60`                                | Rate-limit window (seconds)        |
-| `THROTTLE_LIMIT`           | `100`                               | Requests per IP per window         |
-| `HEALTH_HEAP_THRESHOLD_MB` | `150`                               | Max heap before health check fails |
-| `HEALTH_RSS_THRESHOLD_MB`  | `300`                               | Max RSS before health check fails  |
-| `SEQ_SERVER_URL`           | —                                   | Seq ingestion endpoint (optional)  |
-| `SEQ_API_KEY`              | —                                   | Seq API key (optional)             |
-| `SEQ_SERVICE_NAME`         | `nestjs-boilerplate`                | Service name sent to Seq           |
-| `PROMETHEUS_METRICS_PATH`  | `metrics`                           | Prometheus scrape path             |
+| Variable                   | Default                             | Purpose                                   |
+| -------------------------- | ----------------------------------- | ----------------------------------------- |
+| `NODE_ENV`                 | `development`                       | Runtime environment                       |
+| `PORT`                     | `3000`                              | Fastify listen port                       |
+| `APP_NAME`                 | `NestJS Boilerplate`                | Swagger UI title                          |
+| `APP_DESCRIPTION`          | `NestJS Boilerplate backend API`    | Swagger UI description                    |
+| `MONGODB_URI`              | `mongodb://127.0.0.1:27017/turtles` | MongoDB connection string                 |
+| `REDIS_URL`                | `redis://127.0.0.1:6379`            | Redis connection string                   |
+| `CACHE_TTL`                | `5`                                 | Cache TTL in seconds                      |
+| `THROTTLE_TTL`             | `60`                                | Rate-limit window (seconds)               |
+| `THROTTLE_LIMIT`           | `100`                               | Requests per IP per window                |
+| `HEALTH_HEAP_THRESHOLD_MB` | `150`                               | Max heap before health check fails        |
+| `HEALTH_RSS_THRESHOLD_MB`  | `300`                               | Max RSS before health check fails         |
+| `RESEND_API_KEY`           | —                                   | Resend API key for transactional email    |
+| `RESEND_FROM`              | `noreply@example.com`               | Sender address for OTP mails              |
+| `SEQ_SERVER_URL`           | —                                   | Seq ingestion endpoint (optional)         |
+| `SEQ_API_KEY`              | —                                   | Seq API key (optional)                    |
+| `SEQ_SERVICE_NAME`         | `nestjs-boilerplate`                | Service name sent to Seq                  |
+| `PROMETHEUS_METRICS_PATH`  | `metrics`                           | Prometheus scrape path                    |
+| `AUTH_JWT_SECRET`          | `your_jwt_secret_key`               | JWT signing secret — change in production |
 
 ## Continuous Integration
 
