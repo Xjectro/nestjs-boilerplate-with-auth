@@ -1,0 +1,18 @@
+services:
+  api:
+    image: nestjs-boilerplate:staging
+    build:
+      context: ..
+      dockerfile: docker/images/api/Dockerfile.staging
+    env_file:
+      - ./env/.env.staging
+    ports:
+      - '${PORT}:3000'
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      seq:
+        condition: service_started
+    restart: unless-stopped
