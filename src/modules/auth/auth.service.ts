@@ -201,12 +201,15 @@ export class AuthService {
   }
 
   private async sendOtpMail(email: string, otpCode: string, purpose: OtpCodePurpose) {
-    const subject =
-      purpose === OtpCodePurpose.LOGIN ? 'Your login verification code' : 'Your registration code';
+    const subject = new Map([
+      [OtpCodePurpose.LOGIN, 'Your OTP Code for Login'],
+      [OtpCodePurpose.REGISTER, 'Your OTP Code for Registration'],
+      [OtpCodePurpose.FORGOT_PASSWORD, 'Your OTP Code for Password Reset'],
+    ])
 
     await this.mailService.send({
       to: email,
-      subject,
+      subject: subject.get(purpose) ?? 'Your OTP Code',
       html: `<p>Your verification code is: <strong>${otpCode}</strong></p><p>This code expires in 5 minutes.</p>`,
     });
   }
