@@ -44,10 +44,6 @@ export class ResponseInterceptor implements NestInterceptor {
       return true;
     }
 
-    if (this.isMetricsRoute(request)) {
-      return false;
-    }
-
     const acceptHeader = this.normalizeAcceptHeader(request.headers?.accept);
     if (!acceptHeader) {
       return true;
@@ -70,14 +66,5 @@ export class ResponseInterceptor implements NestInterceptor {
     }
 
     return raw?.toLowerCase();
-  }
-
-  private isMetricsRoute(request: NestFastifyRequest) {
-    const configuredPath = this.config.get('PROMETHEUS_METRICS_PATH').replace(/^\/+/u, '');
-    const metricsPath = `/${configuredPath}`.replace(/\/+$/u, '');
-    const currentPath = (request.url?.split('?')[0] ?? '').replace(/\/+$/u, '');
-    const knownRoutePath = (request as { route?: { path?: string } }).route?.path;
-    const normalizedRoutePath = knownRoutePath?.replace(/\/+$/u, '');
-    return currentPath === metricsPath || normalizedRoutePath === metricsPath;
   }
 }

@@ -1,19 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ResendModule } from 'nestjs-resend';
+import { Resend } from 'resend';
 import type { EnvConfig } from '@/shared/config';
 import { MailService } from './mail.service';
 
 @Module({
-  imports: [
-    ResendModule.forRootAsync({
+  providers: [
+    {
+      provide: Resend,
       inject: [ConfigService],
-      useFactory: (config: ConfigService<EnvConfig, true>) => ({
-        apiKey: config.get('RESEND_API_KEY') ?? '',
-      }),
-    }),
+      useFactory: (config: ConfigService<EnvConfig, true>) =>
+        new Resend(config.get('RESEND_API_KEY')),
+    },
+    MailService,
   ],
-  providers: [MailService],
   exports: [MailService],
 })
 export class MailModule {}

@@ -1,9 +1,9 @@
-import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
-import { MailService } from '@/integrations/mail';
+import { MailService, type SendMailOptions } from '@/integrations/mail';
 import { CustomerService } from '../../customer/customer.service';
 import { CustomerRole } from '../../customer/entities/customer-role.enum';
 import { AuthService } from '../auth.service';
@@ -15,7 +15,7 @@ import {
   ResetPasswordDto,
   ResetPasswordVerifyDto,
 } from '../dto';
-import { OtpCodePurpose } from '../otp/otp-code.schema';
+import { OtpCode, OtpCodePurpose } from '../otp/otp-code.schema';
 import { OtpCodeService } from '../otp/otp-code.service';
 
 jest.mock('bcrypt');
@@ -30,6 +30,8 @@ type TestCustomer = {
 };
 
 type CreateCustomerPayload = Omit<TestCustomer, 'id'>;
+
+type TestOtpCode = Pick<OtpCode, 'id' | 'code' | 'expiresAt' | 'used' | 'purpose'>;
 
 const mockCustomer = {
   id: 'customer-id-1',
@@ -47,15 +49,17 @@ const mockCustomerService = {
 };
 
 const mockOtpCodeService = {
-  findByEmail: jest.fn<any>().mockResolvedValue(null),
-  create: jest.fn<any>().mockResolvedValue({}),
-  updateById: jest.fn<any>().mockResolvedValue({}),
-  verifyCode: jest.fn<any>().mockResolvedValue({}),
-  markAsUsed: jest.fn<any>().mockResolvedValue(undefined),
+  findByEmail: jest.fn<(email: string) => Promise<TestOtpCode | null>>().mockResolvedValue(null),
+  create: jest
+    .fn<(payload: Omit<OtpCode, '_id' | 'id'>) => Promise<Pick<TestOtpCode, 'id'>>>()
+    .mockResolvedValue({} as Pick<TestOtpCode, 'id'>),
+  updateById: jest
+    .fn<(id: string, payload: Partial<OtpCode>) => Promise<TestOtpCode | null | undefined>>()
+    .mockResolvedValue(undefined),
 };
 
 const mockMailService = {
-  send: jest.fn<any>().mockResolvedValue(undefined),
+  send: jest.fn<(options: SendMailOptions) => Promise<void>>().mockResolvedValue(undefined),
 };
 
 const mockJwtService = {

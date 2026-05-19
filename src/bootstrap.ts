@@ -6,13 +6,12 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { apiReference } from '@scalar/nestjs-api-reference';
 import { AppModule } from '@/app.module';
 import { LoggingInterceptor } from '@/integrations/logger/logging.interceptor';
 import type { EnvConfig } from '@/shared/config';
 import { GlobalExceptionFilter } from '@/shared/filters/global-exception.filter';
 import { ResponseInterceptor } from '@/shared/interceptors/response.interceptor';
-
-type FastifyRegisterPlugin = Parameters<NestFastifyApplication['register']>[0];
 
 export async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
@@ -20,8 +19,8 @@ export async function bootstrap() {
   });
 
   /** Security */
-  await app.register(helmet as FastifyRegisterPlugin, { contentSecurityPolicy: false });
-  await app.register(multipart as FastifyRegisterPlugin, {
+  await app.register(helmet, { contentSecurityPolicy: false });
+  await app.register(multipart, {
     limits: { fileSize: 5 * 1024 * 1024 },
   });
 
@@ -45,8 +44,19 @@ export async function bootstrap() {
       'access-token',
     )
     .build();
-  const documentFactory = () => SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, documentFactory);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('swagger', app, document);
+
+  const scalarHandler = apiReference({
+    withFastify: true,
+    content: document,
+    pageTitle: `${config.get('APP_NAME')} - API Reference`,
+  });
+
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .get('/docs', (req, reply) => scalarHandler(req, reply.raw));
 
   /** Error Handling */
   const seqLogger = app.get(SeqLogger);

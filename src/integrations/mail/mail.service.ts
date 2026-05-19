@@ -1,6 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ResendService } from 'nestjs-resend';
+import { Resend } from 'resend';
 import type { EnvConfig } from '@/shared/config';
 
 export type SendMailOptions = {
@@ -13,7 +13,7 @@ export type SendMailOptions = {
 @Injectable()
 export class MailService {
   constructor(
-    @Inject(ResendService) private readonly resend: ResendService,
+    private readonly resend: Resend,
     private readonly config: ConfigService<EnvConfig, true>,
   ) {}
 
