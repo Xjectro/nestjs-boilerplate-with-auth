@@ -4,7 +4,6 @@ FROM node:22-bookworm-slim
 
 WORKDIR /usr/src/app
 
-ENV NODE_ENV=development
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 COPY package.json ./
@@ -12,4 +11,4 @@ RUN npm install
 
 COPY nest-cli.json tsconfig*.json ./
 
-CMD ["npm", "run", "start:dev"]
+CMD ["npm", "run", "start"]

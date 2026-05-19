@@ -205,7 +205,7 @@ export class AuthService {
       [OtpCodePurpose.LOGIN, 'Your OTP Code for Login'],
       [OtpCodePurpose.REGISTER, 'Your OTP Code for Registration'],
       [OtpCodePurpose.FORGOT_PASSWORD, 'Your OTP Code for Password Reset'],
-    ])
+    ]);
 
     await this.mailService.send({
       to: email,

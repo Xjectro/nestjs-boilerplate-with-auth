@@ -7,7 +7,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { redisStore } from 'cache-manager-redis-yet';
 import { LoggerModule } from '@/integrations/logger/logger.module';
-import { MonitoringModule } from '@/integrations/monitoring/monitoring.module';
 import { ConfigModule, type EnvConfig } from '@/shared/config';
 import { ContextModule } from '@/shared/context';
 import { HealthModule } from '@/shared/health/health.module';
@@ -66,7 +65,6 @@ import { AuthModule } from './modules/auth/auth.module';
 
     /** Shared Modules */
     LoggerModule,
-    MonitoringModule,
   ],
   providers: [
     ResponseInterceptor,

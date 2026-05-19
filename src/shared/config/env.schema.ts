@@ -27,9 +27,6 @@ export const envSchema = z.object({
   SEQ_API_KEY: z.string().optional(),
   SEQ_SERVICE_NAME: z.string().default('nestjs-boilerplate'),
 
-  /** Prometheus */
-  PROMETHEUS_METRICS_PATH: z.string().default('metrics'),
-
   /** Resend */
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().default('noreply@example.com'),

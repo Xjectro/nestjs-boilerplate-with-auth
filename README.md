@@ -1,8 +1,7 @@
 # NestJS Boilerplate
 
-> A production-ready NestJS 11 service template built on Fastify, MongoDB, Redis caching, rate
-> limiting, structured logging (Seq), observability (Prometheus + Grafana), and Docker-first
-> workflows.
+> A NestJS 11 service template built on Fastify, MongoDB, Redis caching, rate limiting, structured
+> logging (Seq), and Docker-first workflows.
 
 ## Feature Highlights
 
@@ -11,9 +10,9 @@
 | **HTTP**                 | Fastify adapter, Helmet security headers, global `ValidationPipe`, Swagger UI at `/docs`                      |
 | **Data**                 | MongoDB via Mongoose, Redis cache (`cache-manager-redis-yet`), soft-delete plugin, pagination helper          |
 | **Resilience**           | Rate limiting (`ThrottlerGuard`), idempotency interceptor, graceful shutdown hooks                            |
-| **Observability**        | Seq structured logging, Prometheus metrics + Grafana dashboards, correlation ID per request                   |
+| **Observability**        | Seq structured logging, correlation ID per request                                                            |
 | **Architecture**         | Zod-validated env config, event-driven (`@nestjs/event-emitter`), request context via CLS (AsyncLocalStorage) |
-| **Developer Experience** | Database seeder CLI, Docker Compose stacks (dev/staging/prod/test), CI via GitHub Actions                     |
+| **Developer Experience** | Database seeder CLI, single Docker Compose stack                                                              |
 
 ## Architecture Overview
 
@@ -39,7 +38,6 @@ Single-file bootstrap that creates a `NestFastifyApplication` and registers:
 - `CacheModule` — Redis with `CACHE_TTL`, falls back to in-memory
 - `ThrottlerModule` — rate limiting via `THROTTLE_TTL` / `THROTTLE_LIMIT`
 - `LoggerModule` — Seq structured logging (`src/integrations/logger/`)
-- `MonitoringModule` — Prometheus metrics interceptor (`src/integrations/monitoring/`)
 - Domain modules: `AuthModule`, `HealthModule`
 
 ### Shared (`src/shared/`)
@@ -61,11 +59,10 @@ Core infrastructure — no third-party service coupling.
 
 Third-party service wrappers — each folder is independently replaceable.
 
-| Directory    | Purpose                                             |
-| ------------ | --------------------------------------------------- |
-| `logger/`    | `LoggerModule` (Seq), `LoggingInterceptor`          |
-| `mail/`      | `MailModule`, `MailService` (Resend)                |
-| `monitoring/`| `MonitoringModule` (Prometheus), `MetricsInterceptor` |
+| Directory | Purpose                                    |
+| --------- | ------------------------------------------ |
+| `logger/` | `LoggerModule` (Seq), `LoggingInterceptor` |
+| `mail/`   | `MailModule`, `MailService` (Resend)       |
 
 ### Domain Modules (`src/modules/`)
 
@@ -79,12 +76,10 @@ Third-party service wrappers — each folder is independently replaceable.
 ## Repository Layout
 
 ```
-├── docker/
-│   ├── compose.{base,dev,staging,prod,test}.yml
-│   ├── env/                       # .env.dev, .env.example, .env.test, .env.prod, .env.staging
-│   ├── images/api/                # Dockerfile.{dev,prod,staging,test}
-│   ├── grafana/provisioning/      # dashboards + datasources
-│   └── prometheus/                # prometheus.yml
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── Makefile
 ├── src/
 │   ├── main.ts                    # entry point
 │   ├── bootstrap.ts               # app bootstrap
@@ -93,8 +88,7 @@ Third-party service wrappers — each folder is independently replaceable.
 │   │   └── seed.ts                # database seeder CLI
 │   ├── integrations/              # third-party service wrappers
 │   │   ├── logger/                # Seq — LoggerModule + LoggingInterceptor
-│   │   ├── mail/                  # Resend — MailModule + MailService
-│   │   └── monitoring/            # Prometheus — MonitoringModule + MetricsInterceptor
+│   │   └── mail/                  # Resend — MailModule + MailService
 │   ├── shared/                    # core infrastructure (no external service coupling)
 │   │   ├── config/                # Zod env validation + EnvConfig type
 │   │   ├── context/               # CLS + correlation ID middleware
@@ -111,11 +105,9 @@ Third-party service wrappers — each folder is independently replaceable.
 │       │   ├── guards/            # AuthGuard
 │       │   └── otp/               # OTP service, repositories, schema
 │       └── customer/              # customer service, repository, cache repository
-├── test/
-│   ├── auth.e2e-spec.ts
-│   └── utils/                     # test assertion helpers
-├── Makefile
-└── .github/workflows/
+└── test/
+    ├── auth.e2e-spec.ts
+    └── utils/                     # test assertion helpers
 ```
 
 ## Auth API Overview
@@ -138,15 +130,14 @@ All responses are wrapped by the global response interceptor.
 - Unit tests — `src/modules/auth/__tests__/auth.service.spec.ts`
 - Unit tests — `src/modules/customer/__tests__/customer.service.spec.ts`
 - E2E tests — `test/auth.e2e-spec.ts`
-- Compose-based integration run: `make test` (MongoDB + Redis + API + tests container)
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Node.js** ≥ 20 (Docker images use Node 22-slim)
+- **Node.js** ≥ 20 (Docker image uses Node 22-slim)
 - **npm** 10+
-- **Docker Desktop** (or compatible engine) for compose stacks
+- **Docker Desktop** (or compatible engine)
 
 ### Install & Run
 
@@ -154,11 +145,8 @@ All responses are wrapped by the global response interceptor.
 # install
 npm install
 
-# development (watch mode)
-npm run start:dev
-
-# production
-npm run build && npm run start:prod
+# start
+npm run start
 
 # seed database
 npm run seed
@@ -166,44 +154,51 @@ npm run seed
 
 ### Environment Configuration
 
-Copy `docker/env/.env.example` to `.env` at the repository root. All variables are validated at
-startup via Zod — the app will fail fast with clear error messages if required values are missing or
-malformed.
+Copy `.env.example` to `.env` at the repository root. All variables are validated at startup via Zod
+— the app will fail fast with clear error messages if required values are missing or malformed.
+
+```bash
+cp .env.example .env
+```
+
+### Docker
+
+```bash
+# start all services (API + MongoDB + Redis + Seq)
+make start
+
+# stop and remove volumes
+make down
+```
 
 ## npm Scripts
 
-| Script               | Description                        |
-| -------------------- | ---------------------------------- |
-| `npm run start:dev`  | Start in watch mode                |
-| `npm run build`      | Compile TypeScript                 |
-| `npm run start:prod` | Run compiled output                |
-| `npm run seed`       | Seed the database with sample data |
-| `npm run lint`       | ESLint with auto-fix               |
-| `npm run format`     | Prettier format                    |
-| `npm run test`       | Run unit tests                     |
-| `npm run test:e2e`   | Run e2e tests                      |
-| `npm run test:cov`   | Coverage report                    |
+| Script             | Description                        |
+| ------------------ | ---------------------------------- |
+| `npm run start`    | Start the application              |
+| `npm run build`    | Compile TypeScript                 |
+| `npm run seed`     | Seed the database with sample data |
+| `npm run lint`     | ESLint with auto-fix               |
+| `npm run format`   | Prettier format                    |
+| `npm run test`     | Run unit tests                     |
+| `npm run test:e2e` | Run e2e tests                      |
+| `npm run test:cov` | Coverage report                    |
 
 ## Make Targets
 
-| Target                               | Description                                                    |
-| ------------------------------------ | -------------------------------------------------------------- |
-| `make test`                          | Dockerized unit + e2e tests with real MongoDB/Redis            |
-| `make dev`                           | Dev stack (API + MongoDB + Redis + Seq + Prometheus + Grafana) |
-| `make staging` / `make staging-down` | Staging stack (detached)                                       |
-| `make prod` / `make prod-down`       | Production stack (detached)                                    |
+| Target       | Description                               |
+| ------------ | ----------------------------------------- |
+| `make start` | Start stack (API + MongoDB + Redis + Seq) |
+| `make down`  | Stop stack and remove volumes             |
 
-## Docker & Observability Stack
+## Docker Stack
 
-`docker/compose.base.yml` defines shared services:
+`docker-compose.yml` defines all services:
 
+- **API** — NestJS application container
 - **MongoDB 7** — persistent `mongo-data` volume
-- **Redis 7** — plus exporter for Prometheus
+- **Redis 7** — persistent `redis-data` volume
 - **Seq** — structured log ingestion (HTTP `8081`, ingestion `5341`)
-- **Prometheus + Grafana** — pre-provisioned dashboards and datasources
-
-Environment-specific compose files (`dev`, `staging`, `prod`, `test`) extend the base with the
-appropriate Dockerfile and runtime flags.
 
 ## Environment Variables
 
@@ -225,15 +220,7 @@ appropriate Dockerfile and runtime flags.
 | `SEQ_SERVER_URL`           | —                                   | Seq ingestion endpoint (optional)         |
 | `SEQ_API_KEY`              | —                                   | Seq API key (optional)                    |
 | `SEQ_SERVICE_NAME`         | `nestjs-boilerplate`                | Service name sent to Seq                  |
-| `PROMETHEUS_METRICS_PATH`  | `metrics`                           | Prometheus scrape path                    |
 | `AUTH_JWT_SECRET`          | `your_jwt_secret_key`               | JWT signing secret — change in production |
-
-## Continuous Integration
-
-`.github/workflows/tests.yml` runs on every push/PR to `main`:
-
-1. Checkout → Docker Buildx setup → `make test`
-2. Tests run against real MongoDB/Redis containers, matching production parity.
 
 ## License
 
