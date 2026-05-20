@@ -13,6 +13,7 @@ ENV NODE_OPTIONS="--max-old-space-size=8192"
 COPY nest-cli.json tsconfig*.json ./
 COPY src ./src
 COPY test ./test
+COPY mail_templates ./mail_templates
 RUN npm run build
 
 FROM base AS prod-deps
@@ -33,5 +34,6 @@ ENV PORT=3000
 COPY --from=prod-deps /usr/src/app/node_modules ./node_modules
 COPY package.json ./
 COPY --from=build /usr/src/app/dist ./dist
+COPY --from=build /usr/src/app/mail_templates ./mail_templates
 EXPOSE 3000
 CMD ["npm", "run", "start:prod"]

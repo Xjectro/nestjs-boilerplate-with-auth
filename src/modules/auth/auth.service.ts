@@ -206,11 +206,26 @@ export class AuthService {
       [OtpCodePurpose.REGISTER, 'Your OTP Code for Registration'],
       [OtpCodePurpose.FORGOT_PASSWORD, 'Your OTP Code for Password Reset'],
     ]);
+    const subjectText = subject.get(purpose) ?? 'Your OTP Code';
+    const dateStr = new Date().toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
 
-    await this.mailService.send({
+    await this.mailService.sendTemplate({
       to: email,
-      subject: subject.get(purpose) ?? 'Your OTP Code',
-      html: `<p>Your verification code is: <strong>${otpCode}</strong></p><p>This code expires in 5 minutes.</p>`,
+      subject: subjectText,
+      template: 'otp_card',
+      context: {
+        title: subjectText,
+        date: dateStr,
+        excerpt: 'Use the code below to verify your action.',
+        readMoreUrl: 'https://orqon.io',
+        logoUrl: 'https://www.orqon.io/favicon.ico',
+        code: otpCode,
+        year: new Date().getFullYear(),
+      },
     });
   }
 

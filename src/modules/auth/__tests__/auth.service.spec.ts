@@ -3,7 +3,7 @@ import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
-import { MailService, type SendMailOptions } from '@/integrations/mail';
+import { MailService } from '@/integrations/mail';
 import { CustomerService } from '../../customer/customer.service';
 import { CustomerRole } from '../../customer/entities/customer-role.enum';
 import { AuthService } from '../auth.service';
@@ -59,7 +59,9 @@ const mockOtpCodeService = {
 };
 
 const mockMailService = {
-  send: jest.fn<(options: SendMailOptions) => Promise<void>>().mockResolvedValue(undefined),
+  sendTemplate: jest
+    .fn<(options: { to: string | string[]; subject: string; template: string; context?: Record<string, unknown>; from?: string }) => Promise<void>>()
+    .mockResolvedValue(undefined),
 };
 
 const mockJwtService = {
@@ -99,14 +101,14 @@ describe('AuthService', () => {
       mockCustomerService.findByEmail.mockResolvedValue(mockCustomer);
       mockOtpCodeService.findByEmail.mockResolvedValue(null);
       mockOtpCodeService.create.mockResolvedValue({ id: 'otp-1' });
-      mockMailService.send.mockResolvedValue(undefined);
+      mockMailService.sendTemplate.mockResolvedValue(undefined);
 
       const result = await service.login(loginDto);
 
       expect(result).toEqual({ message: 'OTP code sent to your email' });
       expect(mockCustomerService.findByEmail).toHaveBeenCalledWith(loginDto.email);
       expect(mockOtpCodeService.create).toHaveBeenCalled();
-      expect(mockMailService.send).toHaveBeenCalled();
+      expect(mockMailService.sendTemplate).toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException when email is not found', async () => {
@@ -175,7 +177,7 @@ describe('AuthService', () => {
       });
       mockOtpCodeService.findByEmail.mockResolvedValue(null);
       mockOtpCodeService.create.mockResolvedValue({ id: 'otp-1' });
-      mockMailService.send.mockResolvedValue(undefined);
+      mockMailService.sendTemplate.mockResolvedValue(undefined);
 
       const result = await service.register(registerDto);
 
@@ -185,7 +187,7 @@ describe('AuthService', () => {
       expect(mockCustomerService.findByEmail).toHaveBeenCalledWith(registerDto.email);
       expect(mockCustomerService.create).toHaveBeenCalled();
       expect(mockOtpCodeService.create).toHaveBeenCalled();
-      expect(mockMailService.send).toHaveBeenCalled();
+      expect(mockMailService.sendTemplate).toHaveBeenCalled();
     });
 
     it('should throw ConflictException when email already in use', async () => {
@@ -242,14 +244,14 @@ describe('AuthService', () => {
       mockCustomerService.findByEmail.mockResolvedValue(mockCustomer);
       mockOtpCodeService.findByEmail.mockResolvedValue(null);
       mockOtpCodeService.create.mockResolvedValue({ id: 'otp-1' });
-      mockMailService.send.mockResolvedValue(undefined);
+      mockMailService.sendTemplate.mockResolvedValue(undefined);
 
       const result = await service.forgotPassword(forgotPasswordDto);
 
       expect(result).toEqual({ message: 'OTP code sent to your email for password reset' });
       expect(mockCustomerService.findByEmail).toHaveBeenCalledWith(forgotPasswordDto.email);
       expect(mockOtpCodeService.create).toHaveBeenCalled();
-      expect(mockMailService.send).toHaveBeenCalled();
+      expect(mockMailService.sendTemplate).toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException when email is not found', async () => {
