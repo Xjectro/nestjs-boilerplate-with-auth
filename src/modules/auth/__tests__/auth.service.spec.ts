@@ -60,7 +60,15 @@ const mockOtpCodeService = {
 
 const mockMailService = {
   sendTemplate: jest
-    .fn<(options: { to: string | string[]; subject: string; template: string; context?: Record<string, unknown>; from?: string }) => Promise<void>>()
+    .fn<
+      (options: {
+        to: string | string[];
+        subject: string;
+        template: string;
+        context?: Record<string, unknown>;
+        from?: string;
+      }) => Promise<void>
+    >()
     .mockResolvedValue(undefined),
 };
 
